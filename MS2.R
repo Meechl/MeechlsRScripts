@@ -1,74 +1,110 @@
+# Takes the MS2 data generated from this script: http://nando.eternadev.org/web/script/3386853/
+# Adds columns for the number of each type of basepair in state 1 and state 2
 
+MS2 = read.table("C:/Users/Meechl/Documents/Eterna/csv/MS2/R93_all.csv",sep=",",header=TRUE, na.strings=".") # Read in data
+Map = pairMapMS2() # Generate pair map for the first state
+Map_2 = pairMapMS2_2() # Generate pair map for the second state
+x = allBPMS2() # Make a table with number and percent of each basepair
+write.table(x, file = "C:/Users/Meechl/Documents/Eterna/csv/Result.csv") # Write results to external table
 
-# Number of AU/GC/GU pairs, melt point, free E, designer name
-MS2 = read.table("C:/Users/Meechl/Documents/Eterna/csv/MS2.csv",sep=",",header=TRUE, na.strings=".") #read in data
-MS2in = function (R = MS2){
-  R[,4] = as.double(substr(R[,4],1,2)) #AU pairs
-  R[,5] = as.double(substr(R[,5],1,2)) #GC pairs
-  R[,6] = as.double(substr(R[,6],1,2)) #GU pairs
-  R$AUpct = R[,4]/34*100
-  R$GCpct = R[,5]/34*100
-  R$GUpct = R[,6]/34*100
-  R$Melt_Point = as.double(substr(R$Melt_Point,1,2))
-  x = c(0,0,0)
-  for (i in 1:length(R[,1])){
-    x[i] = substr(R[i,]$Free_E,1,nchar(as.character(R[i,]$Free_E))-4)
+# Generate a pair map from the predicted structure
+pairMapMS2 = function (data = MS2){
+  for (j in 1:length(data[,1])){
+    length = nchar(as.character(MS2[i,]$Structure))
+    map = c(rep(0,length))
+    left = c(0,0)
+    l = 1
+    for (i in 1:length){
+      if (substr(data[j,]$Structure,i,i) == "("){
+        left[l] = i
+        l = l+1
+      }
+      if (substr(data[j,]$Structure,i,i) == ")"){
+        map[left[length(left)]] = i
+        map[i] = left[length(left)]
+        left = left[1:length(left)-1]
+        l = l-1
+      }
+    }
+    if (j == 1){
+      PairMap = t(map)
+    }
+    if (j != 1){
+      PairMap = rbind(PairMap,t(map))
+    }
   }
-  R$Free_E = x
-  # Add number of A, U, G, C
-  R$A = c(rep("oops",length(R[,1])))
-  R$A = BPnum("A",as.vector(R$Sequence))
-  R$U = c(rep("oops",length(R[,1])))
-  R$U = BPnum("U",as.vector(R$Sequence))
-  R$G = c(rep("oops",length(R[,1])))
-  R$G = BPnum("G",as.vector(R$Sequence))
-  R$C = c(rep("oops",length(R[,1])))
-  R$C = BPnum("C",as.vector(R$Sequence))
-  R$length = c(rep("oops",length(R[,1])))
-  for (i in 1:length(R[,1])){
-    R[i,]$length = nchar(as.character(R[i,]$Sequence))
+  return(PairMap)
+}
+pairMapMS2_2 = function (data = MS2){
+  for (j in 1:length(data[,1])){
+    length = nchar(as.character(MS2[i,]$Structure_2))
+    map = c(rep(0,length))
+    left = c(0,0)
+    l = 1
+    for (i in 1:length){
+      if (substr(data[j,]$Structure_2,i,i) == "("){
+        left[l] = i
+        l = l+1
+      }
+      if (substr(data[j,]$Structure_2,i,i) == ")"){
+        map[left[length(left)]] = i
+        map[i] = left[length(left)]
+        left = left[1:length(left)-1]
+        l = l-1
+      }
+    }
+    if (j == 1){
+      PairMap = t(map)
+    }
+    if (j != 1){
+      PairMap = rbind(PairMap,t(map))
+    }
   }
-  R$Apct = as.double(R$A)/as.double(R$length)*100
-  R$Upct = as.double(R$U)/as.double(R$length)*100
-  R$Gpct = as.double(R$G)/as.double(R$length)*100
-  R$Cpct = as.double(R$C)/as.double(R$length)*100
-  return(R)  
+  return(PairMap)
 }
 
-write.table(MS2in(MS2), file = "C:/Users/Meechl/Documents/Eterna/csv/Result.csv")
+# determine basepair number for a design, given sequence and pairmap
+BPMS2 = function(base1="C", base2="G", Sequences=MS2$Sequence, map=Map){
+  counts = c(rep(0,length(Sequences)))
+  for (j in 1:length(Sequences)){ # how designs many tested
+    #browser()
+    x = as.character(Sequences[j])
+    for ( i in 1:length(map[1,]) ){ # Length of mapped sequences
+      #browser()
+      if (map[j,i] != 0){
+        if (substr(x,i,i)==base1 && substr(x,map[j,i],map[j,i])==base2){
+          counts[j] = counts[j]+1
+        }
+      }
+    }
+  }
+  return (counts)
+}
 
-MS2 = MS2in(MS2)
+# make a table with the basepair%'s
+allBPMS2 = function(){
+  GC = BPMS2()
+  AU = BPMS2("A","U")
+  GU = BPMS2("G","U")
+  total = c(rep("oops",length(GC)))
+  for (i in 1:length(GC)){
+    total[i] = GC[i] + AU[i] + GU[i]
+  }
+  AUpct = as.double(AU)/as.double(total)*100
+  GCpct = as.double(GC)/as.double(total)*100
+  GUpct = as.double(GU)/as.double(total)*100
+  
+  GC_2 = BPMS2(map=Map_2)
+  AU_2 = BPMS2("A","U",map=Map_2)
+  GU_2 = BPMS2("G","U",map=Map_2)
+  total_2 = c(rep("oops",length(GC_2)))
+  for (i in 1:length(GC_2)){
+    total_2[i] = GC_2[i] + AU_2[i] + GU_2[i]
+  }
+  AUpct_2 = as.double(AU_2)/as.double(total_2)*100
+  GCpct_2 = as.double(GC_2)/as.double(total_2)*100
+  GUpct_2 = as.double(GU_2)/as.double(total_2)*100
+  all = cbind(AU,GC,GU,AUpct,GCpct,GUpct,AU_2,GC_2,GU_2,AUpct_2,GCpct_2,GUpct_2)
+  return (all)
+}
 
-par(mfrow = c(2,2))
-plot(MS2[grep("Ex1",MS2$Sublab),]$Apct, MS2[grep("Ex1",MS2$Sublab),]$Eterna_Score, xlab = "Percent A", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex1", )
-plot(MS2[grep("Ex1",MS2$Sublab),]$Upct, MS2[grep("Ex1",MS2$Sublab),]$Eterna_Score, xlab = "Percent U", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex1", )
-plot(MS2[grep("Ex1",MS2$Sublab),]$Gpct, MS2[grep("Ex1",MS2$Sublab),]$Eterna_Score, xlab = "Percent G", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex1", )
-plot(MS2[grep("Ex1",MS2$Sublab),]$Cpct, MS2[grep("Ex1",MS2$Sublab),]$Eterna_Score, xlab = "Percent C", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex1", )
-
-plot(MS2[grep("Ex2",MS2$Sublab),]$Apct, MS2[grep("Ex2",MS2$Sublab),]$Eterna_Score, xlab = "Percent A", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex2", )
-plot(MS2[grep("Ex2",MS2$Sublab),]$Upct, MS2[grep("Ex2",MS2$Sublab),]$Eterna_Score, xlab = "Percent U", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex2", )
-plot(MS2[grep("Ex2",MS2$Sublab),]$Gpct, MS2[grep("Ex2",MS2$Sublab),]$Eterna_Score, xlab = "Percent G", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex2", )
-plot(MS2[grep("Ex2",MS2$Sublab),]$Cpct, MS2[grep("Ex2",MS2$Sublab),]$Eterna_Score, xlab = "Percent C", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex2", )
-
-plot(MS2[grep("Ex3",MS2$Sublab),]$Apct, MS2[grep("Ex3",MS2$Sublab),]$Eterna_Score, xlab = "Percent A", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex3", )
-plot(MS2[grep("Ex3",MS2$Sublab),]$Upct, MS2[grep("Ex3",MS2$Sublab),]$Eterna_Score, xlab = "Percent U", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex3", )
-plot(MS2[grep("Ex3",MS2$Sublab),]$Gpct, MS2[grep("Ex3",MS2$Sublab),]$Eterna_Score, xlab = "Percent G", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex3", )
-plot(MS2[grep("Ex3",MS2$Sublab),]$Cpct, MS2[grep("Ex3",MS2$Sublab),]$Eterna_Score, xlab = "Percent C", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex3", )
-
-plot(MS2[grep("Ex4",MS2$Sublab),]$Apct, MS2[grep("Ex4",MS2$Sublab),]$Eterna_Score, xlab = "Percent A", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex4", )
-plot(MS2[grep("Ex4",MS2$Sublab),]$Upct, MS2[grep("Ex4",MS2$Sublab),]$Eterna_Score, xlab = "Percent U", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex4", )
-plot(MS2[grep("Ex4",MS2$Sublab),]$Gpct, MS2[grep("Ex4",MS2$Sublab),]$Eterna_Score, xlab = "Percent G", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex4", )
-plot(MS2[grep("Ex4",MS2$Sublab),]$Cpct, MS2[grep("Ex4",MS2$Sublab),]$Eterna_Score, xlab = "Percent C", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "Ex4", )
-
-plot(MS2[grep("SS1",MS2$Sublab),]$Apct, MS2[grep("SS1",MS2$Sublab),]$Eterna_Score, xlab = "Percent A", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS1", )
-plot(MS2[grep("SS1",MS2$Sublab),]$Upct, MS2[grep("SS1",MS2$Sublab),]$Eterna_Score, xlab = "Percent U", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS1", )
-plot(MS2[grep("SS1",MS2$Sublab),]$Gpct, MS2[grep("SS1",MS2$Sublab),]$Eterna_Score, xlab = "Percent G", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS1", )
-plot(MS2[grep("SS1",MS2$Sublab),]$Cpct, MS2[grep("SS1",MS2$Sublab),]$Eterna_Score, xlab = "Percent C", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS1", )
-
-plot(MS2[grep("SS2",MS2$Sublab),]$Apct, MS2[grep("SS2",MS2$Sublab),]$Eterna_Score, xlab = "Percent A", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS2", )
-plot(MS2[grep("SS2",MS2$Sublab),]$Upct, MS2[grep("SS2",MS2$Sublab),]$Eterna_Score, xlab = "Percent U", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS2", )
-plot(MS2[grep("SS2",MS2$Sublab),]$Gpct, MS2[grep("SS2",MS2$Sublab),]$Eterna_Score, xlab = "Percent G", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS2", )
-plot(MS2[grep("SS2",MS2$Sublab),]$Cpct, MS2[grep("SS2",MS2$Sublab),]$Eterna_Score, xlab = "Percent C", ylab = "Eterna Score", ylim = c(0,100), xlim = c(0,100), main = "SS2", )
-
-par(mfrow = c(1,1))
-plot(MS2$Apct,MS2$Eterna_Score)
